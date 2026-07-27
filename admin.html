@@ -45,7 +45,7 @@
 
 <div class="wrap" id="mainScreen" style="display:none;">
   <header style="display:flex;align-items:center;justify-content:space-between;">
-    <h1>전매신청 예약 관리 - 인천검단 AB13 호반써밋Ⅲ</h1>
+    <h1>전매신청 예약 관리 - 인천검단 AB13 호반써밋Ⅲ <span id="adminNameTag" style="font-size:13px;font-weight:normal;opacity:0.85;"></span></h1>
     <button onclick="logout()" style="background:#fff;color:#e85c0d;border:1px solid #fff;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">로그아웃</button>
   </header>
 
@@ -132,7 +132,7 @@
         <th>접수일시</th><th>예약일시</th><th>동/호</th>
         <th>양도인</th><th>양수인(배우자)</th>
         <th>전매신청서</th><th>가족관계증명서</th><th>개인정보동의</th>
-        <th>상태</th>
+        <th>상태</th><th>최종수정자</th>
       </tr></thead>
       <tbody></tbody>
     </table>
@@ -162,6 +162,37 @@ function safeUrl_(url){
   return /^https?:\/\//i.test(u) ? u : '';
 }
 
+// 연락처 마스킹: "010-1234-5678" -> "010-1234-****" (마지막 그룹 전체를 가림)
+function maskPhone_(phone){
+  const p = String(phone || '').trim();
+  if (!p) return '';
+  const parts = p.split('-');
+  if (parts.length === 3) {
+    return parts[0] + '-' + parts[1] + '-' + '*'.repeat(parts[2].length);
+  }
+  // 하이픈 없는 번호 등 예외 형식은 뒤 4자리 전체를 가림
+  if (p.length >= 4) {
+    return p.slice(0, -4) + '*'.repeat(4);
+  }
+  return p;
+}
+
+// 화면에는 마스킹된 연락처를 기본 표시하고, 클릭하면 전체 번호를 토글해서 보여줌
+// (네트워크 응답에는 이미 전체 번호가 담겨 있으므로, 이건 "옆에서 훔쳐보기" 방지용 화면 마스킹입니다)
+function phoneSpan_(phone){
+  const full = escapeHtml_(phone);
+  const masked = escapeHtml_(maskPhone_(phone));
+  return `<span class="phone-mask" data-full="${full}" data-masked="${masked}" data-revealed="0" `
+       + `onclick="togglePhoneMask_(this)" style="cursor:pointer;border-bottom:1px dotted #999;" `
+       + `title="클릭하여 전체 연락처 보기/가리기">${masked}</span>`;
+}
+
+function togglePhoneMask_(el){
+  const revealed = el.getAttribute('data-revealed') === '1';
+  el.textContent = revealed ? el.getAttribute('data-masked') : el.getAttribute('data-full');
+  el.setAttribute('data-revealed', revealed ? '0' : '1');
+}
+
 async function apiPost(action, extra){
   const res = await fetch(API_URL, {
     method: 'POST',
@@ -184,6 +215,7 @@ async function login(){
       PW = pw;
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('mainScreen').style.display = 'block';
+      document.getElementById('adminNameTag').textContent = json.name ? `(${json.name}님)` : '';
       loadSlots();
       loadReservations();
     }else{
@@ -296,7 +328,7 @@ async function loadReservations(){
   const json = await apiPost('getReservations');
   const tbody = document.querySelector('#resvTable tbody');
   tbody.innerHTML = '';
-  if(!json.ok){ tbody.innerHTML = `<tr><td colspan="9">불러오기 실패: ${escapeHtml_(json.error)}</td></tr>`; return; }
+  if(!json.ok){ tbody.innerHTML = `<tr><td colspan="10">불러오기 실패: ${escapeHtml_(json.error)}</td></tr>`; return; }
   const STATUS_OPTIONS = ['접수완료','서류심사중','LH동의완료','계약완료','반려','취소'];
   const fileLink = (url) => { const u = safeUrl_(url); return u ? `<a class="file-link" href="${escapeHtml_(u)}" target="_blank" rel="noopener noreferrer">보기</a>` : '-'; };
   json.data.forEach(r => {
@@ -308,12 +340,13 @@ async function loadReservations(){
       <td>${escapeHtml_(new Date(r['접수일시']).toLocaleString('ko-KR'))}</td>
       <td>${escapeHtml_(r['예약일'])} ${escapeHtml_(r['예약시간'])}</td>
       <td>${escapeHtml_(r['동'])}동 ${escapeHtml_(r['호'])}호</td>
-      <td>${escapeHtml_(r['양도인_성명'])}<br>${escapeHtml_(r['양도인_연락처'])}</td>
-      <td>${escapeHtml_(r['양수인_성명'])}<br>${escapeHtml_(r['양수인_연락처'])}</td>
+      <td>${escapeHtml_(r['양도인_성명'])}<br>${phoneSpan_(r['양도인_연락처'])}</td>
+      <td>${escapeHtml_(r['양수인_성명'])}<br>${phoneSpan_(r['양수인_연락처'])}</td>
       <td>${fileLink(r['전매신청서_링크'])}</td>
       <td>${fileLink(r['가족관계증명서_링크'])}</td>
       <td style="font-size:11.5px;">수집이용: ${escapeHtml_(r['개인정보동의_수집이용'] || '-')}<br>제3자제공: ${escapeHtml_(r['개인정보동의_제3자제공'] || '-')}<br>유의사항: ${escapeHtml_(r['개인정보동의_유의사항확인'] || '-')}</td>
-      <td><select onchange="updateStatus('${id}', this.value)">${options}</select></td>`;
+      <td><select onchange="updateStatus('${id}', this.value)">${options}</select></td>
+      <td style="font-size:11px;color:#888;">${escapeHtml_(r['최종수정자'] || '-')}</td>`;
     tbody.appendChild(tr);
   });
 }
