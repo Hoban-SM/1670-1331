@@ -217,7 +217,7 @@
         <tbody>
           <tr><th>수집·이용 목적</th><td>분양권 전매(부부공동명의) 신청 접수, 신청인 확인 및 연락</td></tr>
           <tr><th>수집 항목</th><td>성명, 연락처, 생년월일, 주소, 동/호수</td></tr>
-          <tr><th>보유·이용 기간</th><td>전매 절차 완료 또는 신청 취소 후 3개월 이내 파기
+          <tr><th>보유·이용 기간</th><td>전매 절차 완료 또는 신청 취소 시까지 보유하며, 첨부서류(스캔본) 원본은 방문 예정일까지만 보관 후 파기됩니다.
             <span class="sub-note">※ 관계 법령에 따라 보존이 필요한 경우 해당 기간 보유</span></td></tr>
           <tr><th>거부 권리 및 불이익</th><td>동의를 거부할 권리가 있으나, 거부 시 전매신청 접수가 불가합니다.</td></tr>
         </tbody>
@@ -234,7 +234,7 @@
           <tr><th>제공받는 자</th><td>티에스리빙(주), ㈜호반산업, LH 인천지역본부</td></tr>
           <tr><th>제공 목적</th><td>전매동의 심사 및 진행, 자격 검증, 관련 안내</td></tr>
           <tr><th>제공 항목</th><td>성명, 연락처, 생년월일, 주소, 동/호수</td></tr>
-          <tr><th>보유·이용 기간</th><td>제공 목적 달성 시까지 또는 전매 절차 완료 후 3개월</td></tr>
+          <tr><th>보유·이용 기간</th><td>제공 목적 달성 시까지 보유하며, 첨부서류 원본은 방문 예정일까지만 보관 후 파기됩니다.</td></tr>
         </tbody>
       </table>
       <div class="consent-check">
@@ -312,6 +312,10 @@ function loadSlots(){
   fetch(API_URL + '?action=getSlots')
     .then(res => res.json())
     .then(json => {
+      if(json.licenseExpired){
+        showLicenseExpired_();
+        return;
+      }
       if(!json.ok) throw new Error(json.error || '조회 실패');
       applySlots(json.data);
       try{
@@ -323,6 +327,15 @@ function loadSlots(){
         area.innerHTML = '예약 가능 일정을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.<br><span style="font-size:11px;color:#c00;">'+String(err).replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span>';
       }
     });
+}
+
+// 이용기간(라이선스) 만료 시 예약 폼을 감추고 안내 문구만 표시
+function showLicenseExpired_(){
+  const area = document.getElementById('slotArea');
+  area.className = '';
+  area.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">본 서비스의 이용 기간이 종료되었습니다.<br>자세한 사항은 담당자에게 문의해주세요.</div>';
+  const form = document.getElementById('resvForm');
+  if(form) form.style.display = 'none';
 }
 
 function applySlots(data){
