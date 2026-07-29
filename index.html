@@ -163,6 +163,7 @@
 
   <div class="notice">
     ※ 본 예약은 <b>LH 동의하에 진행하는 부부 공동명의 변경</b> 신청 접수입니다.<br>
+    ※ 명의변경은 <b>잔금 납부 전까지</b> 신청 가능하며, LH 승인 절차가 필요하므로 <b>잔금 납부 3주 전까지는 반드시 신청 접수</b>하셔야 합니다.<br>
     ※ 분양대금 연체세대는 진행이 불가합니다.<br>
     ※ 신청서 접수 후 반드시 견본주택 현장 방문 및 서류 제출이 필요합니다. (사전 미제출시 신청 불가)<br>
     ※ 첨부파일: 분양권 전매신청서, 가족관계증명서(상세) 각 1부를 준비해주세요.
@@ -201,11 +202,14 @@
 
       <label>① 분양권 전매신청서</label>
       <input type="file" id="file_apply" accept=".pdf,.jpg,.jpeg,.png" required>
-      <div class="file-hint">서명(또는 인감) 완료된 전매신청서 스캔본/사진, PDF 또는 이미지, 10MB 이하</div>
+      <div class="file-hint">서명(또는 인감) 완료된 전매신청서 스캔본/사진, PDF 또는 이미지, 2MB 이하</div>
 
       <label style="margin-top:18px;">② 가족관계증명서(상세)</label>
       <input type="file" id="file_family" accept=".pdf,.jpg,.jpeg,.png" required>
-      <div class="file-hint">PDF 또는 이미지 파일, 10MB 이하</div>
+      <div class="file-hint">PDF 또는 이미지 파일, 2MB 이하</div>
+      <div style="background:#fff4e8;border:1px solid #f0c896;border-radius:6px;padding:10px 12px;margin-top:8px;font-size:12.5px;color:#a5602a;">
+        ⚠️ <b>가족관계증명서 업로드 시 주민등록번호 뒷자리는 가리고 업로드하여 주시기 바랍니다.</b> (성명·생년월일 등 확인에 필요한 정보만 보이도록 나머지는 가려주세요)
+      </div>
     </div>
 
     <div class="section">
@@ -511,14 +515,14 @@ document.getElementById('resvForm').addEventListener('submit', async (e) => {
       return;
     }
     if(input.files[0].size > 10 * 1024 * 1024){
-      alert(`${f.label} 파일 크기는 10MB 이하로 첨부해주세요.`);
+      alert(`${f.label} 파일 크기는 2MB 이하로 첨부해주세요.`);
       return;
     }
   }
 
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
-  btn.textContent = '접수 처리 중...';
+  btn.textContent = '서류를 안전하게 암호화하는 중입니다... (최대 10초 정도 소요될 수 있습니다)';
 
   try{
     const buildFilePayload = async (id) => {
@@ -564,7 +568,13 @@ document.getElementById('resvForm').addEventListener('submit', async (e) => {
       result.innerHTML = `
         <h2>접수가 완료되었습니다</h2>
         <p>예약일시: <b>${json.data.date} ${json.data.time}</b></p>
-        <p style="font-size:13px;color:#666;">접수번호: ${json.data.reservationId}</p>
+        <div style="background:#fff4e8;border:1.5px solid #e85c0d;border-radius:8px;padding:14px 16px;margin:14px 0;">
+          <p style="font-size:13px;color:#333;margin:0 0 4px;">접수번호</p>
+          <p style="font-size:22px;font-weight:bold;color:#e85c0d;margin:0;letter-spacing:0.5px;">${json.data.reservationId}</p>
+          <p style="font-size:12.5px;color:#a5602a;margin:8px 0 0;">
+            ⚠️ 접수완료 후에는 <b>접수번호로 예약확인이 가능</b>합니다. 이 화면을 <b>캡쳐(스크린샷)하여 보관</b>해주세요.
+          </p>
+        </div>
         <p style="font-size:13px;color:#666;margin-top:20px;">
           예약일에 견본주택(경기도 김포시 사우동 547-8)으로 방문하시어<br>
           관련 서류를 제출해주시기 바랍니다.<br>

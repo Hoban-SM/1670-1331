@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>첨부파일 복호화 도구 - 인천검단 AB13 호반써밋Ⅲ</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root { --hoban-orange:#e85c0d; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Malgun Gothic", sans-serif; background:#f4f3ef; margin:0; padding:20px; }
+  .wrap { max-width: 560px; margin: 0 auto; }
+  header { background: var(--hoban-orange); color:#fff; padding:20px; border-radius:10px 10px 0 0; }
+  header h1 { margin:0; font-size:19px; }
+  header p { margin:6px 0 0; font-size:13px; opacity:0.9; }
+  .card { background:#fff; padding:22px; border-radius:0 0 10px 10px; box-shadow:0 1px 4px rgba(0,0,0,0.08); }
+  label { display:block; font-weight:bold; font-size:14px; margin:14px 0 6px; }
+  input[type="password"], input[type="file"] {
+    width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; font-size:14px;
+  }
+  .submit {
+    width:100%; margin-top:20px; padding:13px; background:var(--hoban-orange); color:#fff;
+    border:none; border-radius:8px; font-size:15px; font-weight:bold; cursor:pointer;
+  }
+  .submit:disabled { background:#ccc; cursor:not-allowed; }
+  .notice { background:#fff8ec; border:1px solid #f0d9a8; color:#7a5c1e; padding:12px 14px; border-radius:8px; font-size:12.5px; margin-bottom:16px; line-height:1.6; }
+  .msg { margin-top:14px; font-size:13.5px; padding:10px 12px; border-radius:6px; display:none; }
+  .msg.error { display:block; background:#fdecea; color:#c0392b; }
+  .msg.success { display:block; background:#e9f7ef; color:#1e7e34; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🔓 첨부파일 복호화 도구</h1>
+    <p>인천검단 AB13블록 호반써밋Ⅲ - 관리자 전용</p>
+  </header>
+  <div class="card">
+    <div class="notice">
+      접수 시 담당자 메일로 발송된 <b>암호화 첨부파일(.enc)</b>을 여기에 업로드하면, 관리자 비밀번호 확인 후
+      서버에서 복호화해서 원본 파일(PDF/이미지)로 다운로드해드립니다.<br>
+      복호화는 항상 서버에서만 이뤄지고, 암호화 키는 이 페이지나 브라우저로 전달되지 않습니다.
+    </div>
+
+    <label for="pw">관리자 비밀번호</label>
+    <input type="password" id="pw" placeholder="비밀번호 입력">
+
+    <label for="file">암호화 파일 (.enc)</label>
+    <input type="file" id="file" accept=".enc">
+
+    <button class="submit" id="decryptBtn" onclick="decryptFile_()">복호화 후 다운로드</button>
+
+    <div class="msg" id="msg"></div>
+  </div>
+</div>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbxxiRb7USiEmsyM_49Tx9hE4vWYbGUVY3lk-gXCo-wTh7Iozff1NtYBog3SGHksjV2O/exec';
+
+function readFileAsBase64_(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]); // "data:...;base64,XXXX"에서 XXXX만
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function showMsg_(text, type){
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = 'msg ' + type;
+}
+
+async function decryptFile_(){
+  const pw = document.getElementById('pw').value;
+  const fileInput = document.getElementById('file');
+  const file = fileInput.files[0];
+  const btn = document.getElementById('decryptBtn');
+
+  if (!pw) { showMsg_('관리자 비밀번호를 입력해주세요.', 'error'); return; }
+  if (!file) { showMsg_('암호화 파일(.enc)을 선택해주세요.', 'error'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '복호화 중...';
+  showMsg_('', '');
+  document.getElementById('msg').className = 'msg';
+
+  try {
+    const fileDataBase64 = await readFileAsBase64_(file);
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'decryptUploadedFile',
+        password: pw,
+        fileData: fileDataBase64,
+        fileName: file.name
+      })
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || '복호화 실패');
+
+    const byteChars = atob(json.data.base64);
+    const byteNumbers = new Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+    const blob = new Blob([new Uint8Array(byteNumbers)], { type: json.data.mimeType });
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = json.data.fileName || 'decrypted_file';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+
+    showMsg_('✅ 복호화 완료 — 다운로드가 시작되었습니다. (' + json.data.fileName + ')', 'success');
+  } catch (err) {
+    showMsg_('복호화 실패: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '복호화 후 다운로드';
+  }
+}
+</script>
+</body>
+</html>

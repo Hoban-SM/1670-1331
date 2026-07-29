@@ -46,8 +46,18 @@
 <div class="wrap" id="mainScreen" style="display:none;">
   <header style="display:flex;align-items:center;justify-content:space-between;">
     <h1>전매신청 예약 관리 - 인천검단 AB13 호반써밋Ⅲ <span id="adminNameTag" style="font-size:13px;font-weight:normal;opacity:0.85;"></span></h1>
-    <button onclick="logout()" style="background:#fff;color:#e85c0d;border:1px solid #fff;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">로그아웃</button>
+    <div style="display:flex;gap:8px;">
+      <a href="decrypt.html" target="_blank" style="background:#fff;color:#e85c0d;border:1px solid #fff;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:bold;text-decoration:none;">🔓 첨부파일 복호화 도구</a>
+      <button onclick="logout()" style="background:#fff;color:#e85c0d;border:1px solid #fff;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">로그아웃</button>
+    </div>
   </header>
+
+  <div class="card" style="background:#fff8ec;border:1px solid #f0d9a8;">
+    <p style="font-size:13px;color:#7a5c1e;margin:0;">
+      ⚠️ 첨부파일(전매신청서·가족관계증명서)은 <b>어디에도 저장되지 않습니다.</b> 접수 시 담당자 메일로 암호화된 파일(.enc)이 바로 발송되니,
+      서류를 다시 확인해야 할 때는 <b>메일함에서 해당 접수 건 메일을 찾아</b> 첨부파일을 다운로드한 뒤, 위 "🔓 첨부파일 복호화 도구"에 업로드해서 열어보세요.
+    </p>
+  </div>
 
   <div class="card">
     <h2>예약 가능 일정 생성 (30분 단위 자동 생성)</h2>
@@ -330,7 +340,7 @@ async function loadReservations(){
   tbody.innerHTML = '';
   if(!json.ok){ tbody.innerHTML = `<tr><td colspan="10">불러오기 실패: ${escapeHtml_(json.error)}</td></tr>`; return; }
   const STATUS_OPTIONS = ['접수완료','서류심사중','LH동의완료','계약완료','반려','취소'];
-  const fileLink = (url) => { const u = safeUrl_(url); return u ? `<a class="file-link" href="${escapeHtml_(u)}" target="_blank" rel="noopener noreferrer">보기</a>` : '-'; };
+  const fileName_ = (name) => name ? `${escapeHtml_(name)}<br><span style="font-size:10.5px;color:#999;">메일 첨부파일 참조</span>` : '-';
   json.data.forEach(r => {
     const id = escapeHtml_(r['예약ID']);
     const cur = r['상태'] || '접수완료';
@@ -342,8 +352,8 @@ async function loadReservations(){
       <td>${escapeHtml_(r['동'])}동 ${escapeHtml_(r['호'])}호</td>
       <td>${escapeHtml_(r['양도인_성명'])}<br>${phoneSpan_(r['양도인_연락처'])}</td>
       <td>${escapeHtml_(r['양수인_성명'])}<br>${phoneSpan_(r['양수인_연락처'])}</td>
-      <td>${fileLink(r['전매신청서_링크'])}</td>
-      <td>${fileLink(r['가족관계증명서_링크'])}</td>
+      <td>${fileName_(r['전매신청서_파일명'])}</td>
+      <td>${fileName_(r['가족관계증명서_파일명'])}</td>
       <td style="font-size:11.5px;">수집이용: ${escapeHtml_(r['개인정보동의_수집이용'] || '-')}<br>제3자제공: ${escapeHtml_(r['개인정보동의_제3자제공'] || '-')}<br>유의사항: ${escapeHtml_(r['개인정보동의_유의사항확인'] || '-')}</td>
       <td><select onchange="updateStatus('${id}', this.value)">${options}</select></td>
       <td style="font-size:11px;color:#888;">${escapeHtml_(r['최종수정자'] || '-')}</td>`;
