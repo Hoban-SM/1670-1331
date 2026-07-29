@@ -27,6 +27,14 @@
   .msg { margin-top:14px; font-size:13.5px; padding:10px 12px; border-radius:6px; display:none; }
   .msg.error { display:block; background:#fdecea; color:#c0392b; }
   .msg.success { display:block; background:#e9f7ef; color:#1e7e34; }
+  #fileList { margin-top:14px; }
+  .file-row { display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border:1px solid #eee; border-radius:6px; margin-bottom:6px; font-size:13px; }
+  .file-row .name { color:#333; word-break:break-all; padding-right:10px; }
+  .file-row .status { white-space:nowrap; font-weight:bold; }
+  .file-row .status.wait { color:#999; }
+  .file-row .status.doing { color:#e85c0d; }
+  .file-row .status.ok { color:#1e7e34; }
+  .file-row .status.fail { color:#c0392b; }
 </style>
 </head>
 <body>
@@ -37,19 +45,20 @@
   </header>
   <div class="card">
     <div class="notice">
-      접수 시 담당자 메일로 발송된 <b>암호화 첨부파일(.enc)</b>을 여기에 업로드하면, 관리자 비밀번호 확인 후
-      서버에서 복호화해서 원본 파일(PDF/이미지)로 다운로드해드립니다.<br>
+      접수 시 담당자 메일로 발송된 <b>암호화 첨부파일(.enc)</b>을 여기에 업로드하면(여러 개 한 번에 선택 가능), 관리자 비밀번호 확인 후
+      서버에서 각각 복호화해서 원본 파일(PDF/이미지)로 다운로드해드립니다.<br>
       복호화는 항상 서버에서만 이뤄지고, 암호화 키는 이 페이지나 브라우저로 전달되지 않습니다.
     </div>
 
     <label for="pw">관리자 비밀번호</label>
     <input type="password" id="pw" placeholder="비밀번호 입력">
 
-    <label for="file">암호화 파일 (.enc)</label>
-    <input type="file" id="file" accept=".enc">
+    <label for="file">암호화 파일 (.enc) - 여러 개 선택 가능</label>
+    <input type="file" id="file" accept=".enc" multiple>
 
-    <button class="submit" id="decryptBtn" onclick="decryptFile_()">복호화 후 다운로드</button>
+    <button class="submit" id="decryptBtn" onclick="decryptFiles_()">복호화 후 다운로드</button>
 
+    <div id="fileList"></div>
     <div class="msg" id="msg"></div>
   </div>
 </div>
@@ -72,54 +81,84 @@ function showMsg_(text, type){
   el.className = 'msg ' + type;
 }
 
-async function decryptFile_(){
+async function decryptFiles_(){
   const pw = document.getElementById('pw').value;
   const fileInput = document.getElementById('file');
-  const file = fileInput.files[0];
+  const files = Array.from(fileInput.files);
   const btn = document.getElementById('decryptBtn');
+  const fileListEl = document.getElementById('fileList');
+  const msgEl = document.getElementById('msg');
 
   if (!pw) { showMsg_('관리자 비밀번호를 입력해주세요.', 'error'); return; }
-  if (!file) { showMsg_('암호화 파일(.enc)을 선택해주세요.', 'error'); return; }
+  if (!files.length) { showMsg_('암호화 파일(.enc)을 1개 이상 선택해주세요.', 'error'); return; }
 
   btn.disabled = true;
-  btn.textContent = '복호화 중...';
-  showMsg_('', '');
-  document.getElementById('msg').className = 'msg';
+  msgEl.className = 'msg';
+  fileListEl.innerHTML = '';
 
-  try {
-    const fileDataBase64 = await readFileAsBase64_(file);
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'decryptUploadedFile',
-        password: pw,
-        fileData: fileDataBase64,
-        fileName: file.name
-      })
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error || '복호화 실패');
+  // 파일별 상태 행을 미리 만들어둠 (대기중 → 복호화중 → 완료/실패)
+  const rows = files.map((f) => {
+    const row = document.createElement('div');
+    row.className = 'file-row';
+    row.innerHTML = `<span class="name">${f.name}</span><span class="status wait">대기중</span>`;
+    fileListEl.appendChild(row);
+    return row.querySelector('.status');
+  });
 
-    const byteChars = atob(json.data.base64);
-    const byteNumbers = new Array(byteChars.length);
-    for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
-    const blob = new Blob([new Uint8Array(byteNumbers)], { type: json.data.mimeType });
-    const blobUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = blobUrl;
-    a.download = json.data.fileName || 'decrypted_file';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+  let successCount = 0, failCount = 0;
 
-    showMsg_('✅ 복호화 완료 — 다운로드가 시작되었습니다. (' + json.data.fileName + ')', 'success');
-  } catch (err) {
-    showMsg_('복호화 실패: ' + err.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '복호화 후 다운로드';
+  // 여러 파일을 동시에 보내지 않고 하나씩 순서대로 처리 (서버 부하 및 다운로드 팝업 차단 방지)
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const statusEl = rows[i];
+    statusEl.textContent = '복호화 중...';
+    statusEl.className = 'status doing';
+    try {
+      const fileDataBase64 = await readFileAsBase64_(file);
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'decryptUploadedFile',
+          password: pw,
+          fileData: fileDataBase64,
+          fileName: file.name
+        })
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || '복호화 실패');
+
+      const byteChars = atob(json.data.base64);
+      const byteNumbers = new Array(byteChars.length);
+      for (let j = 0; j < byteChars.length; j++) byteNumbers[j] = byteChars.charCodeAt(j);
+      const blob = new Blob([new Uint8Array(byteNumbers)], { type: json.data.mimeType });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = json.data.fileName || 'decrypted_file';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+
+      statusEl.textContent = '✅ 완료';
+      statusEl.className = 'status ok';
+      successCount++;
+    } catch (err) {
+      statusEl.textContent = '❌ 실패: ' + err.message;
+      statusEl.className = 'status fail';
+      failCount++;
+    }
+    // 브라우저의 다운로드 팝업 차단을 피하기 위해 파일 사이에 약간의 간격을 둠
+    await new Promise(r => setTimeout(r, 400));
+  }
+
+  btn.disabled = false;
+
+  if (failCount === 0) {
+    showMsg_(`✅ 전체 ${successCount}개 파일 복호화 완료 — 다운로드가 시작되었습니다.`, 'success');
+  } else {
+    showMsg_(`${successCount}개 성공, ${failCount}개 실패 — 실패한 파일은 위 목록에서 확인해주세요.`, 'error');
   }
 }
 </script>
